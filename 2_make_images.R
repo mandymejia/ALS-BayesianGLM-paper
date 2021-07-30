@@ -90,7 +90,7 @@ s <- 'C07' # example subject data in repo
   #pal_act <- c('red3','orange','yellow')
   #pal_act <- brewer.pal(9, 'YlOrRd')
 
-  act_Bayes <- vector('list', length=2)
+  act_Bayes <- act_classical <- vector('list', length=2)
   for(h in 1:2){
     hem <- c('lh','rh')[h]
 

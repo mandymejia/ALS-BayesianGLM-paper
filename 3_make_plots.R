@@ -68,7 +68,7 @@ max_days$ALS_group[max_days$subject=='A11'] <- 'group2'
 ######################################################
 # ALSFRS-R FIGURE ----
 
-ALSFRS <- read.csv('scanALSFRS.csv', skip=3)[,-1]
+ALSFRS <- read.csv('scanALSFRS.csv')[,-1]
 cols_ALSFRS <- c(3:7,9:15) #ALFRS score columns -- exclude Total and Cut_with (always missing)
 
 #compute composite motor ALSFRS scores
@@ -123,10 +123,9 @@ ggplot(ALSFRS2, aes(x=days_since_onset/365*12, y=ALSFRS, color=progressors)) +
 ggplot(ALSFRS3, aes(x=subject, y=progression_rate, fill=progressors)) +
   #geom_hline(yintercept=c(0.1, 0.7), color='gray', linetype=2) +
   geom_bar(stat = 'identity') + theme_few() +
-  xlab('Subject ID') + ylab('Progression Rate') +
+  xlab('Subject ID') + ylab('Progression Rate') + ggtitle('') +
   theme(legend.position='bottom') + scale_fill_jco(name='') +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-  ggtitle('')
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
 range(ALSFRS2$progression_rate[ALSFRS2$progressors=='slow'], na.rm=TRUE)
 range(ALSFRS2$progression_rate[ALSFRS2$progressors=='moderate'], na.rm=TRUE)
@@ -305,10 +304,7 @@ for(hem in c('lh','rh')){
     } #end loop over thresholds
 
     df_HC <- data.frame(estimate = HC_est, SE = HC_SE, threshold = thresholds)
-
-    #coefs_df$hem <- hem
-    #coefs_df_all <- rbind(coefs_df_all, coefs_df)
-
+    
     thr_long <- c('Bayesian (0%)', 'Bayesian (1%)', 'Bayesian (2%)', 'FWER', 'FDR')
     thr_short <- c('0%', '1%', '2%', 'FWER', 'FDR')
     dat_pred_all$group <- factor(dat_pred_all$group, levels=c('ALS','HC'))
@@ -327,73 +323,73 @@ for(hem in c('lh','rh')){
 
     title_hem <- ifelse(hem=='lh', "Contralateral (Left) Hemisphere", "Ipsilateral (Right) Hemisphere")
 
-    # BAYESIAN GLM
-    # xmax=0.5 is approximately equal to 90th quantile of Burden Hand Motor
-    df_tmp <- filter(dat_pred_all, BurdenOther==0, group=='ALS', !(threshold2 %in% c('FWER','FDR')))
-    #df_tmp <- filter(dat_pred_all, group=='ALS', !(threshold2 %in% c('FWER','FDR')))
-    print(ggplot(df_tmp,  aes(x=BurdenHandMotor)) +
-            #geom_point(data = filter(df_HC, !(threshold %in% c('FWER','FDR'))), aes(x = -0.02, y = estimate), size=3) +
-            geom_text(data = NULL, aes(x=-0.05, y=ymax*0.95, label='HC'), size=4) +
-            geom_text(data = NULL, aes(x=0.07, y=ymax*0.95, label='ALS'), size=4) +
-            geom_point(data = filter(df_HC, !(threshold %in% c('FWER','FDR'))), aes(x = -0.05, y = estimate, fill=threshold), size=3, pch=21) +
-            geom_errorbar(data = filter(df_HC, !(threshold %in% c('FWER','FDR'))), aes(x = -0.05, ymin = estimate - SE, ymax = estimate + SE), width=0) +
-            #geom_line(aes(y=Area_pred, group=threshold2), color='black', size=1.2) +
-            geom_line(aes(y=Area_pred, color=threshold2), size=1) +
-            geom_ribbon(aes(ymin=(SE_lo), ymax=(SE_hi), group=threshold2), alpha=0.2) +
-            #ylim(ymin,ymax) +
-            scale_y_continuous(breaks=seq(0,4000,1000)) +
-            scale_x_continuous(limits=c(-0.07, 0.5), breaks=seq(0,0.5,0.1)) +
-            geom_vline(xintercept=0) +
-            scale_color_manual('Effect Size', values=pal_thr) + scale_fill_manual('Effect Size', values=pal_thr) +
-            ylab('Size of Activation') + xlab('Hand Motor Disability') + ggtitle(title_hem) +
-            guides(fill=FALSE) + theme_few() + theme(legend.position='bottom', plot.title = element_text(hjust = 0.5)))
-    # xmax=0.35 is approximately equal to 90th quantile of Burden Other
-    df_tmp <- filter(dat_pred_all, BurdenHandMotor==0, BurdenOther <= 0.35, group=='ALS', !(threshold2 %in% c('FWER','FDR')))
-    print(ggplot(df_tmp,  aes(x=BurdenOther)) +
-            #geom_point(data = filter(df_HC, !(threshold %in% c('FWER','FDR'))), aes(x = -0.02, y = estimate), size=3) +
-            geom_text(data = NULL, aes(x=-0.035, y=ymax*0.95, label='HC'), size=4) +
-            geom_text(data = NULL, aes(x=0.05, y=ymax*0.95, label='ALS'), size=4) +
-            geom_point(data = filter(df_HC, !(threshold %in% c('FWER','FDR'))), aes(x = -0.035, y = estimate, fill=threshold), size=3, pch=21) +
-            geom_errorbar(data = filter(df_HC, !(threshold %in% c('FWER','FDR'))), aes(x = -0.035, ymin = estimate - SE, ymax = estimate + SE), width=0) +
-            #geom_line(aes(y=Area_pred, group=threshold2), color='black', size=1.2) +
-            geom_line(aes(y=Area_pred, color=threshold2), size=1) +
-            geom_ribbon(aes(ymin=(SE_lo), ymax=(SE_hi), group=threshold2), alpha=0.2) +
-            #ylim(ymin,ymax) +
-            scale_y_continuous(breaks=seq(0,4000,1000)) +
-            scale_x_continuous(limits=c(-0.05, 0.35), breaks=seq(0,0.3,0.1)) +
-            geom_vline(xintercept=0) +
-            scale_color_manual('Effect Size', values=pal_thr) + scale_fill_manual('Effect Size', values=pal_thr) +
-            ylab('Size of Activation') + xlab('Other Disability') + ggtitle(title_hem) +
-            guides(fill=FALSE) +
-            theme_few() + theme(legend.position='bottom', plot.title = element_text(hjust = 0.5)))
-    df_tmp <- filter(dat_pred0_all, !(threshold2 %in% c('FWER','FDR')))
-    print(ggplot(df_tmp,  aes(x=BurdenOverall)) +
-            #geom_point(data = filter(df_HC, !(threshold %in% c('FWER','FDR'))), aes(x = -0.02, y = estimate), size=3) +
-            geom_text(data = NULL, aes(x=-0.05, y=ymax*0.95, label='HC'), size=4) +
-            geom_text(data = NULL, aes(x=0.07, y=ymax*0.95, label='ALS'), size=4) +
-            geom_point(data = filter(df_HC, !(threshold %in% c('FWER','FDR'))), aes(x = -0.05, y = estimate, fill=threshold), size=3, pch=21) +
-            geom_errorbar(data = filter(df_HC, !(threshold %in% c('FWER','FDR'))), aes(x = -0.05, ymin = estimate - SE, ymax = estimate + SE), width=0) +
-            #geom_line(aes(y=Area_pred, group=threshold2), color='black', size=1.2) +
-            geom_line(aes(y=Area_pred, color=threshold2), size=1) +
-            geom_ribbon(aes(ymin=(SE_lo), ymax=(SE_hi), group=threshold2), alpha=0.2) +
-            scale_y_continuous(breaks=seq(0,4000,1000)) +
-            scale_x_continuous(limits=c(-0.07, 0.5), breaks=seq(0,0.5,0.1)) +
-            geom_vline(xintercept=0) +
-            scale_color_manual('Effect Size', values=pal_thr) + scale_fill_manual('Effect Size', values=pal_thr) +
-            ylab('Size of Activation') + xlab('Total Disability') + ggtitle(title_hem) +
-            guides(fill=FALSE) + theme_few() + theme(legend.position='bottom', plot.title = element_text(hjust = 0.5)))
-
+    #Plots for paper
+    if(g %in% 1:2){
+      
+      #Size of Activation vs Hand Motor Disability
+      df_tmp <- filter(dat_pred_all, BurdenOther==0, group=='ALS', !(threshold2 %in% c('FWER','FDR')))
+      print(ggplot(df_tmp,  aes(x=BurdenHandMotor)) +
+              #geom_point(data = filter(df_HC, !(threshold %in% c('FWER','FDR'))), aes(x = -0.02, y = estimate), size=3) +
+              geom_text(data = NULL, aes(x=-0.05, y=ymax*0.95, label='HC'), size=4) +
+              geom_text(data = NULL, aes(x=0.07, y=ymax*0.95, label='ALS'), size=4) +
+              geom_point(data = filter(df_HC, !(threshold %in% c('FWER','FDR'))), aes(x = -0.05, y = estimate, fill=threshold), size=3, pch=21) +
+              geom_errorbar(data = filter(df_HC, !(threshold %in% c('FWER','FDR'))), aes(x = -0.05, ymin = estimate - SE, ymax = estimate + SE), width=0) +
+              #geom_line(aes(y=Area_pred, group=threshold2), color='black', size=1.2) +
+              geom_line(aes(y=Area_pred, color=threshold2), size=1) +
+              geom_ribbon(aes(ymin=(SE_lo), ymax=(SE_hi), group=threshold2), alpha=0.2) +
+              #ylim(ymin,ymax) +
+              scale_y_continuous(breaks=seq(0,4000,1000)) +
+              scale_x_continuous(limits=c(-0.07, 0.5), breaks=seq(0,0.5,0.1)) + # xmax=0.5 is approximately equal to 90th quantile of Burden Hand Motor
+              geom_vline(xintercept=0) +
+              scale_color_manual('Effect Size', values=pal_thr) + scale_fill_manual('Effect Size', values=pal_thr) +
+              ylab('Size of Activation') + xlab('Hand Motor Disability') + ggtitle(title_hem) +
+              guides(fill=FALSE) + theme_few() + theme(legend.position='bottom', plot.title = element_text(hjust = 0.5)))
+      
+      #Size of Activation vs Other Disability
+      df_tmp <- filter(dat_pred_all, BurdenHandMotor==0, BurdenOther <= 0.35, group=='ALS', !(threshold2 %in% c('FWER','FDR')))
+      print(ggplot(df_tmp,  aes(x=BurdenOther)) +
+              #geom_point(data = filter(df_HC, !(threshold %in% c('FWER','FDR'))), aes(x = -0.02, y = estimate), size=3) +
+              geom_text(data = NULL, aes(x=-0.035, y=ymax*0.95, label='HC'), size=4) +
+              geom_text(data = NULL, aes(x=0.05, y=ymax*0.95, label='ALS'), size=4) +
+              geom_point(data = filter(df_HC, !(threshold %in% c('FWER','FDR'))), aes(x = -0.035, y = estimate, fill=threshold), size=3, pch=21) +
+              geom_errorbar(data = filter(df_HC, !(threshold %in% c('FWER','FDR'))), aes(x = -0.035, ymin = estimate - SE, ymax = estimate + SE), width=0) +
+              #geom_line(aes(y=Area_pred, group=threshold2), color='black', size=1.2) +
+              geom_line(aes(y=Area_pred, color=threshold2), size=1) +
+              geom_ribbon(aes(ymin=(SE_lo), ymax=(SE_hi), group=threshold2), alpha=0.2) +
+              #ylim(ymin,ymax) +
+              scale_y_continuous(breaks=seq(0,4000,1000)) +
+              scale_x_continuous(limits=c(-0.05, 0.35), breaks=seq(0,0.3,0.1)) + # xmax=0.35 is approximately equal to 90th quantile of Burden Other
+              geom_vline(xintercept=0) +
+              scale_color_manual('Effect Size', values=pal_thr) + scale_fill_manual('Effect Size', values=pal_thr) +
+              ylab('Size of Activation') + xlab('Other Disability') + ggtitle(title_hem) +
+              guides(fill=FALSE) +
+              theme_few() + theme(legend.position='bottom', plot.title = element_text(hjust = 0.5)))
+      
+      #Size of Activation vs Total Disability
+      df_tmp <- filter(dat_pred0_all, !(threshold2 %in% c('FWER','FDR')))
+      print(ggplot(df_tmp,  aes(x=BurdenOverall)) +
+              #geom_point(data = filter(df_HC, !(threshold %in% c('FWER','FDR'))), aes(x = -0.02, y = estimate), size=3) +
+              geom_text(data = NULL, aes(x=-0.05, y=ymax*0.95, label='HC'), size=4) +
+              geom_text(data = NULL, aes(x=0.07, y=ymax*0.95, label='ALS'), size=4) +
+              geom_point(data = filter(df_HC, !(threshold %in% c('FWER','FDR'))), aes(x = -0.05, y = estimate, fill=threshold), size=3, pch=21) +
+              geom_errorbar(data = filter(df_HC, !(threshold %in% c('FWER','FDR'))), aes(x = -0.05, ymin = estimate - SE, ymax = estimate + SE), width=0) +
+              #geom_line(aes(y=Area_pred, group=threshold2), color='black', size=1.2) +
+              geom_line(aes(y=Area_pred, color=threshold2), size=1) +
+              geom_ribbon(aes(ymin=(SE_lo), ymax=(SE_hi), group=threshold2), alpha=0.2) +
+              scale_y_continuous(breaks=seq(0,4000,1000)) +
+              scale_x_continuous(limits=c(-0.07, 0.5), breaks=seq(0,0.5,0.1)) +
+              geom_vline(xintercept=0) +
+              scale_color_manual('Effect Size', values=pal_thr) + scale_fill_manual('Effect Size', values=pal_thr) +
+              ylab('Size of Activation') + xlab('Total Disability') + ggtitle(title_hem) +
+              guides(fill=FALSE) + theme_few() + theme(legend.position='bottom', plot.title = element_text(hjust = 0.5)))
+    }
+    
   } #end loop over robustness checks
-  
-  #HERE
 
   dat_pred_slowfast <- filter(dat_pred_slowfast, group=='ALS', !(threshold2 %in% c('FWER','FDR')))
   dat_pred_slowfast$progressors <- factor(dat_pred_slowfast$model_group, levels=c('fast','slow'), labels=c('fast', 'moderate'))
 
-  pdf(paste0('Plots_2021/lmer_activation_vs_diability_',hem,'_fastslow.pdf'), width=5, height=4)
-
-  # BAYESIAN GLM
-  # xmax=0.5 is approximately equal to 90th quantile of Burden Hand Motor
+  #Size of Activation vs Hand Motor Disability for Fast and Slow Progressors
   df_tmp <- filter(dat_pred_slowfast, BurdenOther==0)
   print(ggplot(df_tmp,  aes(x=BurdenHandMotor)) +
           geom_line(aes(y=Area_pred, linetype=progressors), size=1) +
@@ -401,7 +397,8 @@ for(hem in c('lh','rh')){
           facet_grid(. ~ threshold2) +
           ylab('Size of Activation') + xlab('Hand Motor Disability') +
           theme_few() + theme(legend.position='bottom'))
-  # xmax=0.35 is approximately equal to 90th quantile of Burden Other
+
+  #Size of Activation vs Other Disability for Fast and Slow Progressors
   df_tmp <- filter(dat_pred_slowfast, BurdenHandMotor==0, BurdenOther <= 0.35)
   print(ggplot(df_tmp,  aes(x=BurdenOther)) +
           geom_line(aes(y=Area_pred, linetype=progressors), size=1) +
@@ -409,108 +406,5 @@ for(hem in c('lh','rh')){
           facet_grid(. ~ threshold2) +
           ylab('Size of Activation') + xlab('Other Disability') +
           theme_few() + theme(legend.position='bottom'))
-  dev.off()
-
+  
 } #end loop over hemispheres
-
-
-### PREDICT HAND MOTOR DISABILITY WITH ACTIVATIONS?
-
-active_areas_df <- dplyr::filter(active_areas_df, method=='excur', threshold %in% c(0,1,2))
-active_areas_ALSFRS <- left_join(filter(active_areas_df, group=='ALS'),
-                                 select(ALSFRS, subject, visit, HandMotor))
-active_areas_ALSFRS$BurdenHandMotor <- (3*4 - active_areas_ALSFRS$HandMotor)/(3*4)
-active_areas_ALSFRS <- filter(active_areas_ALSFRS, !(subject=='A14' & visit == 1)) #filter out earlier visits to see greater change in ALSFRS
-active_areas_ALSFRS <- dplyr::filter(active_areas_ALSFRS, subject!='A04')
-
-ggplot(active_areas_ALSFRS, aes(x=area, y=BurdenHandMotor)) +
-  geom_point() + geom_smooth() +
-  facet_grid(hemisphere ~ threshold2, scales='free') + theme_few()
-active_areas_ALSFRS <- filter(active_areas_ALSFRS, !(hemisphere=='rh' & threshold==1 & (area > 1500)))
-active_areas_ALSFRS <- filter(active_areas_ALSFRS, !(hemisphere=='rh' & threshold==2 & (area > 750)))
-
-dat_ALS_lh0 = select(filter(active_areas_ALSFRS, threshold==0, hemisphere=='lh'), subject, visit, BurdenHandMotor, area)
-dat_ALS_lh1 = select(filter(active_areas_ALSFRS, threshold==1, hemisphere=='lh'), subject, visit, BurdenHandMotor, area)
-dat_ALS_lh2 = select(filter(active_areas_ALSFRS, threshold==2, hemisphere=='lh'), subject, visit, BurdenHandMotor, area)
-#dat_ALS_rh0 = select(filter(active_areas_ALSFRS, threshold==0, hemisphere=='rh'), subject, visit, BurdenHandMotor, area)
-#dat_ALS_rh1 = select(filter(active_areas_ALSFRS, threshold==1, hemisphere=='rh'), subject, visit, BurdenHandMotor, area)
-#dat_ALS_rh2 = select(filter(active_areas_ALSFRS, threshold==2, hemisphere=='rh'), subject, visit, BurdenHandMotor, area)
-names(dat_ALS_lh0)[4] <- 'area_lh0'
-names(dat_ALS_lh1)[4] <- 'area_lh1'
-names(dat_ALS_lh2)[4] <- 'area_lh2'
-#names(dat_ALS_rh0)[4] <- 'area_rh0'
-#names(dat_ALS_rh1)[4] <- 'area_rh1'
-dat_ALS_lh <- inner_join(dat_ALS_lh0, dat_ALS_lh1, by=c('subject','visit','BurdenHandMotor'))
-dat_ALS_lh <- inner_join(dat_ALS_lh, dat_ALS_lh2, by=c('subject','visit','BurdenHandMotor'))
-#dat_ALS_rh <- inner_join(dat_ALS_rh0, dat_ALS_rh1, by=c('subject','visit','BurdenHandMotor'))
-#dat_ALS <- inner_join(dat_ALS_lh, dat_ALS_rh, by=c('subject','visit','BurdenHandMotor'))
-
-#lmer(area ~ 1 + days_since_visit1 + (1 | subject), data = dat_thr_HC)
-predALS <- lm(BurdenHandMotor ~ 1 + ns(area_lh0, df=3) + ns(area_lh1, df=3) + ns(area_lh2, df=3), data=dat_ALS_lh)
-subjects_ALS <- unique(dat_ALS_lh$subject)
-dat_pred <- NULL
-for(ss in subjects_ALS){
-  predALS_s <- lm(BurdenHandMotor ~ 1 + ns(area_lh0, df=3)*ns(area_lh1, df=3), data=filter(dat_ALS_lh, subject != ss))
-  dat_ALS_lh_s <- filter(dat_ALS_lh, subject == ss)
-  dat_ALS_lh_s$pred <- predict(predALS_s, newdata=dat_ALS_lh_s)
-  dat_pred <- rbind(dat_pred, dat_ALS_lh_s)
-}
-
-cor_pred <- cor(dat_pred$BurdenHandMotor, dat_pred$pred)
-cor_pred_text <- paste0('cor = ',round(cor_pred,3))
-ggplot(dat_pred, aes(x=BurdenHandMotor, y=pred)) +
-  geom_point(aes(color=subject)) + geom_smooth(method='lm', se=FALSE) +
-  annotate("text", x = 0.1, y = 0.6, label = cor_pred_text) +
-  scale_color_manual(values=pal_ALS) +
-  theme_few() + xlab('True Hand Motor Disability') + ylab('Predicted Hand Motor Disability')
-#
-#
-# coefs_df_all$CI_lwr <- coefs_df_all$est - 1.96*coefs_df_all$SE
-# coefs_df_all$CI_upr <- coefs_df_all$est + 1.96*coefs_df_all$SE
-# coefs_df_all$tval <- coefs_df_all$est/coefs_df_all$SE
-# coefs_df_all$pval <- 2*pnorm(abs(coefs_df_all$tval), lower.tail=FALSE)
-#
-# filter(coefs_df_all, group=='HC')
-# filter(coefs_df_all, group=='ALS')
-
-######################################################################################################
-### COMPUTATION TIME
-######################################################################################################
-
-### TIME TO IDENTIFY ACTIVATIONS
-
-#sum over hemispheres
-comptime_act_df2 <- comptime_act_df %>% group_by(subject, visit, threshold) %>% summarize(comptime = sum(comptime))
-#average over visits
-comptime_act_df3 <- comptime_act_df2 %>% group_by(subject, threshold) %>% summarize(comptime_avg = mean(comptime), num_visits=n())
-comptime_act_df3$threshold <- factor(comptime_act_df2$threshold, levels=0:2, labels=paste0(0:2,'%'))
-
-
-### TIME FOR MODEL ESTIMATION
-
-load(file=file.path(main_dir,'Results_2021','comptime.RData')) #comptime_df -- model estimation time
-#sum over hemispheres
-comptime_df2 <- comptime_df %>% group_by(subject, num_visits) %>% summarize(comptime = sum(comptime))
-
-
-pdf(file.path(main_dir,'Plots_2021/comptime.pdf'), width=4, height=4)
-ggplot(comptime_df2, aes(x=num_visits, y=comptime/60)) +
-  geom_point() + geom_smooth() +
-  #geom_line(aes(color=subject, group=interaction(subject, hemisphere))) +
-  #geom_boxplot(aes(group=num_visits), alpha=0.3) +
-  theme_few() + ggtitle('Computation Time to Estimate Model') +
-  ylab('Minutes') + xlab('Number of Sessions in Model')
-ggplot(comptime_act_df3, aes(x=num_visits, y=comptime_avg/60)) +
-  geom_point() + geom_smooth() + #geom_smooth(aes(group=threshold, color=threshold)) +
-  #geom_line(aes(group=subject, color=num_visits)) +
-  #geom_violin(aes(group=threshold), alpha=0.5) +
-  #scale_color_viridis_c() +
-  theme_few() + #theme(legend.position = 'bottom') +
-  ggtitle('Computation Time to Identify Activations') +
-  ylab('Minutes (per Session & Threshold)') + xlab('Number of Sessions in Model')
-dev.off()
-
-
-
-
-
