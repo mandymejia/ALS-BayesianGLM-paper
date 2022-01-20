@@ -6,9 +6,7 @@ library(tidyverse)
 library(ggplot2)
 library(ggthemes)
 library(ggsci)
-# # # library(scales) #alpha
 library(RColorBrewer)
-# library(gridExtra)
 library(viridisLite)
 library(lme4)
 library(splines)
@@ -18,7 +16,7 @@ library(splines)
 
 main_dir <- '/my/project/dir' #path to repo contents
 data_dir <- file.path(main_dir,'data')
-result_dir <- file.path(main_dir,'results') 
+result_dir <- file.path(main_dir,'results')
 setwd(data_dir)
 load(file='subjects.Rdata') #subjects
 task <- 'RRC'
@@ -200,6 +198,12 @@ quantile(ALSFRS$BurdenOverall, 0.9) #0.375
 quantile(ALSFRS$BurdenHandMotor, 0.9) #0.5
 quantile(ALSFRS$BurdenOther, 0.9) #0.361
 
+#Bring in Age & Sex
+demo_ALS <- read.csv('demographics_ALS_20210302.csv', header=FALSE)
+demo_HC <- read.csv('demographics_HC_20210302.csv', header=FALSE)
+demo_df <- rbind(demo_ALS, demo_HC)[,c(1,4,5)]
+names(demo_df) <- c('subject','age','sex')
+
 active_areas_df2 <- dplyr::filter(active_areas_df, method=='excur', threshold %in% c(0,1,2))
 active_areas_df2_classical <- dplyr::filter(active_areas_df, method %in% c('FWER','FDR'))
 active_areas_df2 <- rbind(active_areas_df2, active_areas_df2_classical)
@@ -208,17 +212,18 @@ for(hem in c('lh','rh')){
   active_areas <- dplyr::filter(active_areas_df2, hemisphere==hem)#, method==mthd)
   active_areas <- left_join(active_areas, scanDays) #merge in days since onset/enrollment
   active_areas <- left_join(active_areas, select(max_days, subject, ALS_group)) #merge in ALS group ID
+  active_areas <- left_join(active_areas, demo_df) #merge in age & sex
   active_areas$ALS_group[active_areas$group=='HC'] <- 'HC'
   active_areas_ALSFRS <- left_join(active_areas, select(ALSFRS, subject, visit, BurdenOverall, BurdenHandMotor, BurdenOther))
-  
-  ### MODEL SELECTION USING LRT ----
-  
+
   #limit data to a 2-year window for each subject
   active_areas_ALSFRS <- filter(active_areas_ALSFRS, !(group=='HC' & days_since_visit1 > 365*2))
   active_areas_ALSFRS <- filter(active_areas_ALSFRS, !(subject=='A14' & visit == 1)) #filter out earlier visits to see greater change in ALSFRS
 
   #use left hemisphere, 0% threshold
   if(hem=='lh'){
+
+    ### MODEL SELECTION USING LRT ----
 
     ### ALS
     dat_thr_ALS <- dplyr::filter(active_areas_ALSFRS, threshold==0, group=='ALS', method=='excur')
@@ -236,10 +241,10 @@ for(hem in c('lh','rh')){
     lmerHandMotor7_thr <- lmer(area ~ 1 + days_since_onset + (1 | subject ), data = dat_thr_ALS)
     AIC(lmerHandMotor6_thr) #1208.877
     AIC(lmerHandMotor7_thr) #1250.991
-    AIC(lmerHandMotor3_thr) #1185.976
+    AIC(lmerHandMotor3_thr) #1185.976 -- best
     sqrt(mean(residuals(lmerHandMotor6_thr)^2)) #708
     sqrt(mean(residuals(lmerHandMotor7_thr)^2)) #711
-    sqrt(mean(residuals(lmerHandMotor3_thr)^2)) #663
+    sqrt(mean(residuals(lmerHandMotor3_thr)^2)) #663 -- best
 
     ### HC
     dat_thr_HC <- dplyr::filter(active_areas_ALSFRS, threshold==0, group=='HC', method=='excur')
@@ -248,6 +253,55 @@ for(hem in c('lh','rh')){
     anova(lmerHC2_thr, lmerHC_thr) #test spline on days_since_visit1 -- p=0.7816
     lmerHC3_thr <- lmer(area ~ 1 + (1 | subject), data = dat_thr_HC)
     anova(lmerHC3_thr, lmerHC_thr) #test slope on days_since_visit1 -- p=0.5275
+
+    ### LOOK AT INCLUDING AGE & SEX ----
+
+    lmerHandMotor <- lmer(area ~ 1 + ns(BurdenHandMotor, df=3) + BurdenOther + (1 | subject ), data = dat_thr_ALS)
+    lmerHandMotor_age <- lmer(area ~ 1 + ns(BurdenHandMotor, df=3) + BurdenOther + age + (1 | subject ), data = dat_thr_ALS)
+    lmerHandMotor_sex <- lmer(area ~ 1 + ns(BurdenHandMotor, df=3) + BurdenOther + sex + (1 | subject ), data = dat_thr_ALS)
+    lmerHandMotor_agesex <- lmer(area ~ 1 + ns(BurdenHandMotor, df=3) + BurdenOther + age + sex + (1 | subject ), data = dat_thr_ALS)
+    anova(lmerHandMotor, lmerHandMotor_agesex) #test inclusion of age & sex -- p=0.326 (not significant)
+    AIC(lmerHandMotor) #1185.976
+    AIC(lmerHandMotor_age) #1178.07
+    AIC(lmerHandMotor_sex) #1172.909
+    AIC(lmerHandMotor_agesex) #1164.232 -- best
+
+    #compare coefficient curves for HandMotor effect
+    dat_pred_all <- NULL
+    for(model in c('none','age','sex','agesex')){
+
+      #specify mdoel
+      if(model == 'none') lmer_model <- lmerHandMotor
+      if(model == 'age') lmer_model <- lmerHandMotor_age
+      if(model == 'sex') lmer_model <- lmerHandMotor_sex
+      if(model == 'agesex') lmer_model <- lmerHandMotor_agesex
+
+      #design matrix
+      dat_pred <- expand.grid(BurdenHandMotor = seq(0,0.5,0.01), BurdenOther = 0.25, age = 60, sexM = 1)
+      if(model == 'none') mm <- model.matrix( ~ 1 + ns(BurdenHandMotor, df=3) + BurdenOther, dat_pred)
+      if(model == 'age') mm <- model.matrix( ~ 1 + ns(BurdenHandMotor, df=3) + BurdenOther + age, dat_pred)
+      if(model == 'sex') mm <- model.matrix( ~ 1 + ns(BurdenHandMotor, df=3) + BurdenOther + sexM, dat_pred)
+      if(model == 'agesex') mm <- model.matrix( ~ 1 + ns(BurdenHandMotor, df=3) + BurdenOther + age + sexM, dat_pred)
+
+      dat_pred$model <- model
+      dat_pred$Area_pred <- mm %*% fixef(lmer_model) # X * beta-hat
+      dat_pred$SE_pred <- sqrt(diag(mm %*% tcrossprod(vcov(lmer_model),mm))) #Var(y-hat) = Var(X*beta-hat) = X*Var(beta-hat)*X'
+      dat_pred$SE_lo <- dat_pred$Area_pred - dat_pred$SE_pred
+      dat_pred$SE_hi <- dat_pred$Area_pred + dat_pred$SE_pred
+      dat_pred_all <- rbind(dat_pred_all, dat_pred)
+    }
+
+    dat_pred_all$model <- factor(dat_pred_all$model, levels=c('none','age','sex','agesex'))
+    ggplot(dat_pred_all, aes(x=BurdenHandMotor, y=Area_pred)) +
+      geom_line() + geom_ribbon(aes(ymin=(SE_lo), ymax=(SE_hi)), alpha=0.2) +
+      scale_y_continuous(limits=c(0,4000), breaks=seq(0,4000,1000)) +
+      scale_x_continuous(limits=c(-0.07, 0.5), breaks=seq(0,0.5,0.1)) + # xmax=0.5 is approximately equal to 90th quantile of Burden Hand Motor
+      ylab('Size of Activation (Effect Size = 0%)') + xlab('Hand Motor Disability') +
+      theme_few() + facet_grid(. ~ model)
+
+    #conclusion: Including age and/or sex doesn't appear to have a negative effect on the main effect of interest (Hand Motor Disability).
+    #While neither is statistically significant (nor together, using an F test), including both decreases the AIC.
+    #Therefore, we include both controls in all subsequent models.
 
   }
 
@@ -274,10 +328,12 @@ for(hem in c('lh','rh')){
       ### ALS
       dat_thr_ALS <- dplyr::filter(active_areas_ALSFRS, threshold2==thr, group=='ALS')
       dat_thr_ALS <- dplyr::filter(dat_thr_ALS, ALS_group %in% paste0('group',grp_inds))
-      lmerHandMotor_thr <- lmer(area ~ 1 + ns(BurdenHandMotor, df=3) + BurdenOther + (1 | subject), data = dat_thr_ALS)
+      if(g != 3) lmerHandMotor_thr <- lmer(area ~ 1 + ns(BurdenHandMotor, df=3) + BurdenOther + age + sex + (1 | subject), data = dat_thr_ALS)
+      if(g == 3) lmerHandMotor_thr <- lmer(area ~ 1 + ns(BurdenHandMotor, df=3) + BurdenOther + age + (1 | subject), data = dat_thr_ALS) #only males in group 3 (fast progressors)
       xvals <- seq(0,0.5,0.01) #c(0,0.1,0.2,0.3,0.4,0.5)
-      dat_pred <- expand.grid(BurdenHandMotor = xvals, BurdenOther = xvals, days_since_visit1 = NA, threshold2=thr, group = 'ALS')
-      mm <- model.matrix( ~ 1 + ns(BurdenHandMotor, df=3) + BurdenOther, dat_pred)
+      dat_pred <- expand.grid(BurdenHandMotor = xvals, BurdenOther = xvals, days_since_visit1 = NA, threshold2=thr, age=60, sexM=1, group = 'ALS')
+      if(g != 3) mm <- model.matrix( ~ 1 + ns(BurdenHandMotor, df=3) + BurdenOther + age + sexM, dat_pred)
+      if(g == 3) mm <- model.matrix( ~ 1 + ns(BurdenHandMotor, df=3) + BurdenOther + age, dat_pred) #only males in group 3 (fast progressors)
       dat_pred$Area_pred <- mm %*% fixef(lmerHandMotor_thr) # X * beta-hat
       dat_pred$SE_pred <- sqrt(diag(mm %*% tcrossprod(vcov(lmerHandMotor_thr),mm))) #Var(y-hat) = Var(X*beta-hat) = X*Var(beta-hat)*X'
       dat_pred$SE_lo <- dat_pred$Area_pred - dat_pred$SE_pred
@@ -286,9 +342,11 @@ for(hem in c('lh','rh')){
       dat_pred_all <- rbind(dat_pred_all, dat_pred)
 
       ### ALS with Overall Burden
-      lmerOverall_thr <- lmer(area ~ 1 + ns(BurdenOverall, df=3) + (1 | subject), data = dat_thr_ALS)
-      dat_pred0 <- expand.grid(BurdenOverall = xvals, days_since_visit1 = NA, threshold2=thr, group = 'ALS')
-      mm <- model.matrix( ~ 1 + ns(BurdenOverall, df=3), dat_pred0)
+      if(g != 3) lmerOverall_thr <- lmer(area ~ 1 + ns(BurdenOverall, df=3) + age + sex + (1 | subject), data = dat_thr_ALS)
+      if(g == 3) lmerOverall_thr <- lmer(area ~ 1 + ns(BurdenOverall, df=3) + age + (1 | subject), data = dat_thr_ALS) #only males in group 3 (fast progressors)
+      dat_pred0 <- expand.grid(BurdenOverall = xvals, days_since_visit1 = NA, threshold2=thr, age=60, sexM=1, group = 'ALS')
+      if(g != 3) mm <- model.matrix( ~ 1 + ns(BurdenOverall, df=3) + age + sexM, dat_pred0)
+      if(g == 3) mm <- model.matrix( ~ 1 + ns(BurdenOverall, df=3) + age, dat_pred0) #only males in group 3 (fast progressors)
       dat_pred0$Area_pred <- mm %*% fixef(lmerOverall_thr) # X * beta-hat
       dat_pred0$SE_pred <- sqrt(diag(mm %*% tcrossprod(vcov(lmerOverall_thr),mm))) #Var(y-hat) = Var(X*beta-hat) = X*Var(beta-hat)*X'
       dat_pred0$SE_lo <- dat_pred0$Area_pred - dat_pred0$SE_pred
@@ -298,13 +356,15 @@ for(hem in c('lh','rh')){
 
       ### HC model (intercept-only model)
       dat_thr_HC <- dplyr::filter(active_areas_ALSFRS, threshold2==thr, group=='HC')
-      lmerHC0_thr <- lmer(area ~ 1 + (1 | subject), data = dat_thr_HC)
-      HC_est = c(HC_est, fixef(lmerHC0_thr)[1])
-      HC_SE = c(HC_SE, sqrt(vcov(lmerHC0_thr)[1,1]))
+      lmerHC0_thr <- lmer(area ~ 1 + age + sex + (1 | subject), data = dat_thr_HC)
+      dat_pred0_HC <- expand.grid(BurdenOverall = NA, days_since_visit1 = NA, threshold2=thr, age=60, sexM=1, group = 'HC')
+      mm <- model.matrix( ~ 1 + age + sexM, dat_pred0_HC)
+      HC_est <- c(HC_est, mm %*% fixef(lmerHC0_thr)) # X * beta-hat
+      HC_SE <- c(HC_SE, sqrt(diag(mm %*% tcrossprod(vcov(lmerHC0_thr),mm)))) #Var(y-hat) = Var(X*beta-hat) = X*Var(beta-hat)*X'
     } #end loop over thresholds
 
     df_HC <- data.frame(estimate = HC_est, SE = HC_SE, threshold = thresholds)
-    
+
     thr_long <- c('Bayesian (0%)', 'Bayesian (1%)', 'Bayesian (2%)', 'FWER', 'FDR')
     thr_short <- c('0%', '1%', '2%', 'FWER', 'FDR')
     dat_pred_all$group <- factor(dat_pred_all$group, levels=c('ALS','HC'))
@@ -325,9 +385,9 @@ for(hem in c('lh','rh')){
 
     #Plots for paper
     if(g %in% 1:2){
-      
+
       #Size of Activation vs Hand Motor Disability
-      df_tmp <- filter(dat_pred_all, BurdenOther==0, group=='ALS', !(threshold2 %in% c('FWER','FDR')))
+      df_tmp <- dplyr::filter(dat_pred_all, BurdenOther==0, group=='ALS', !(threshold2 %in% c('FWER','FDR')))
       print(ggplot(df_tmp,  aes(x=BurdenHandMotor)) +
               #geom_point(data = filter(df_HC, !(threshold %in% c('FWER','FDR'))), aes(x = -0.02, y = estimate), size=3) +
               geom_text(data = NULL, aes(x=-0.05, y=ymax*0.95, label='HC'), size=4) +
@@ -344,7 +404,7 @@ for(hem in c('lh','rh')){
               scale_color_manual('Effect Size', values=pal_thr) + scale_fill_manual('Effect Size', values=pal_thr) +
               ylab('Size of Activation') + xlab('Hand Motor Disability') + ggtitle(title_hem) +
               guides(fill=FALSE) + theme_few() + theme(legend.position='bottom', plot.title = element_text(hjust = 0.5)))
-      
+
       #Size of Activation vs Other Disability
       df_tmp <- filter(dat_pred_all, BurdenHandMotor==0, BurdenOther <= 0.35, group=='ALS', !(threshold2 %in% c('FWER','FDR')))
       print(ggplot(df_tmp,  aes(x=BurdenOther)) +
@@ -364,7 +424,7 @@ for(hem in c('lh','rh')){
               ylab('Size of Activation') + xlab('Other Disability') + ggtitle(title_hem) +
               guides(fill=FALSE) +
               theme_few() + theme(legend.position='bottom', plot.title = element_text(hjust = 0.5)))
-      
+
       #Size of Activation vs Total Disability
       df_tmp <- filter(dat_pred0_all, !(threshold2 %in% c('FWER','FDR')))
       print(ggplot(df_tmp,  aes(x=BurdenOverall)) +
@@ -382,9 +442,10 @@ for(hem in c('lh','rh')){
               scale_color_manual('Effect Size', values=pal_thr) + scale_fill_manual('Effect Size', values=pal_thr) +
               ylab('Size of Activation') + xlab('Total Disability') + ggtitle(title_hem) +
               guides(fill=FALSE) + theme_few() + theme(legend.position='bottom', plot.title = element_text(hjust = 0.5)))
-    }
-    
+    } # end loop over plots
+
   } #end loop over robustness checks
+
 
   dat_pred_slowfast <- filter(dat_pred_slowfast, group=='ALS', !(threshold2 %in% c('FWER','FDR')))
   dat_pred_slowfast$progressors <- factor(dat_pred_slowfast$model_group, levels=c('fast','slow'), labels=c('fast', 'moderate'))
@@ -406,5 +467,5 @@ for(hem in c('lh','rh')){
           facet_grid(. ~ threshold2) +
           ylab('Size of Activation') + xlab('Other Disability') +
           theme_few() + theme(legend.position='bottom'))
-  
+
 } #end loop over hemispheres
